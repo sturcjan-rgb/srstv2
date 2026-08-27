@@ -1,0 +1,42 @@
+name: Aktualizace zápasů Sršni TV
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repozitáře
+        uses: actions/checkout@v4
+
+      - name: Nastavení Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalace závislostí
+        run: npm install
+
+      - name: Spuštění scraperu zápasů (tvcom)
+        run: node scraper.mjs
+
+      - name: Spuštění scraperu videí (YouTube)
+        run: node youtube-scraper.mjs
+
+      - name: Uložení změn (pokud nějaké jsou)
+        run: |
+          git config user.name "srsni-tv-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/matches.json data/youtube.json
+          if git diff --staged --quiet; then
+            echo "Žádné změny v datech."
+          else
+            git commit -m "chore: aktualizace dat Sršni TV (zápasy + videa)"
+            git push
+          fi
