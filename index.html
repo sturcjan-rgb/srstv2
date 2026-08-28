@@ -125,7 +125,7 @@
   .card-action{margin-top:auto;}
 
   /* ---- tags shared ---- */
-  .tag-home, .tag-away{font-size:var(--fs-tag);font-weight:700;letter-spacing:0.5px;padding:3px 8px;border-radius:5px;display:inline-block;}
+  .tag-home, .tag-away, .tag-youtube{font-size:var(--fs-tag);font-weight:700;letter-spacing:0.5px;padding:3px 8px;border-radius:5px;display:inline-block;}
   .tag-home{background:rgba(255,210,26,0.16);color:var(--gold);}
   .tag-away{background:rgba(255,255,255,0.08);color:var(--text-dim);}
 
@@ -178,10 +178,8 @@
   .player-head .close{cursor:pointer;color:var(--text-dim);font-size:20px;line-height:1;background:none;border:none;}
   .player-head .close:hover{color:var(--gold);}
   /* Odznak zdroje (tvcom vs youtube) v seznamu */
-  .src-badge{font-size:11px;font-weight:800;letter-spacing:0.5px;padding:2px 7px;border-radius:5px;display:inline-block;text-transform:uppercase;}
-  .src-tvcom{background:rgba(255,210,26,0.16);color:var(--gold);}
-  .src-youtube{background:rgba(255,0,0,0.16);color:#ff5a5a;}
-  .yt-title{font-family:"Barlow Condensed","CoFo Peshka Black",sans-serif;font-weight:700;}
+  .tag-youtube{background:rgba(255,0,0,0.16);color:#ff5a5a;}
+  .yt-title{font-family:"CoFo Peshka Black","Barlow Condensed",sans-serif;font-weight:900;}
   .video-wrap{position:relative;width:100%;padding-top:56.25%;background:#000;}
   .video-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0;}
 
@@ -486,10 +484,11 @@ function renderList(){
   }
   list.innerHTML = rows.map((m) => {
     if(m.type === "youtube"){
+      const label = /ohlasy/i.test(m.title) ? "Ohlasy po utkání" : m.title;
       return `
       <div class="match playable" onclick="openYouTube(${m._yi})">
         <div class="m-date"><b>${m.date}</b>${m.time}</div>
-        <div class="m-teams"><span class="src-badge src-youtube">YouTube</span><span class="yt-title">${m.title}</span></div>
+        <div class="m-teams"><span class="tag-youtube">YOUTUBE</span><span class="yt-title">${label}</span></div>
         <div class="m-phase">Video</div>
         <div class="m-action"><button class="btn-play" type="button">${PLAY_ICON}Přehrát</button></div>
       </div>`;
@@ -501,7 +500,7 @@ function renderList(){
     return `
       <div class="match ${playable ? 'playable' : ''}" ${playable ? `onclick="openPlayer(${m._i})"` : ""}>
         <div class="m-date"><b>${m.date}</b>${m.time}</div>
-        <div class="m-teams"><span class="src-badge src-tvcom">TVCOM</span>${tagOf(m)}<span class="opp-name">${opponentOf(m)}</span></div>
+        <div class="m-teams">${tagOf(m)}<span class="opp-name">${opponentOf(m)}</span></div>
         <div class="m-phase">${m.phase}</div>
         <div class="m-action">${action}</div>
       </div>`;
