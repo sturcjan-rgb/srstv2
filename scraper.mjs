@@ -4,7 +4,8 @@
 // 1. Stáhne stránku Maxa NBL na tvcom.cz (server-rendered HTML, aktuální sezóna).
 // 2. Vyfiltruje jen zápasy Sršňů (podle "Sršni" v názvu týmu).
 // 3. U zápasů, které ještě nemáme vyřešené (bez embed GUID), stáhne detail
-//    zápasu a zkusí z něj vytáhnout <iframe src="//embed.tvcom.cz/{GUID}/">.
+//    zápasu a zkusí z něj vytáhnout <iframe src="//embed.tvcom.cz/{GUID}/">
+//    a náhledový obrázek (og:image) do pole "thumb".
 // 4. VÝSLEDEK SLOUČÍ s tím, co už v data/matches.json bylo — nikdy ho
 //    celý nepřepisuje. Tvcom defaultně ukazuje jen aktuální sezónu, takže
 //    bez sloučení by scraper při každém přechodu na novou sezónu tiše
@@ -149,16 +150,30 @@ async function getSrsniMatches(leagueUrls) {
   return [...byId.values()];
 }
 
-async function getEmbedId(matchUrl) {
+// Z detailu zápasu vytáhne embed GUID a náhledový obrázek (og:image /
+// twitter:image). Vrací null, když se stránka nenačte.
+async function getMatchDetail(matchUrl) {
   let html;
   try {
     html = await fetchHtml(matchUrl);
   } catch (e) {
-    console.warn(`  ! embed nedohledán (${matchUrl}): ${e.message}`);
+    console.warn(`  ! detail nedostupný (${matchUrl}): ${e.message}`);
     return null;
   }
   const m = html.match(/embed\.tvcom\.cz\/([a-f0-9-]{20,})\//i);
-  return m ? m[1] : null;
+  const $ = cheerio.load(html);
+  const rawThumb =
+    $('meta[property="og:image"]').attr("content") ||
+    $('meta[name="twitter:image"]').attr("content") ||
+    $('link[rel="image_src"]').attr("href") ||
+    null;
+  let thumb = null;
+  if (rawThumb) {
+    try {
+      thumb = new URL(rawThumb.trim(), matchUrl).href.replace(/^http:/, "https:");
+    } catch {}
+  }
+  return { embed: m ? m[1] : null, thumb };
 }
 
 // Načte, co už v repu máme — napříč VŠEMI dosud viděnými sezónami.
@@ -196,13 +211,17 @@ async function main() {
     const key = matchKey(m);
     const existing = merged.get(key);
     let embed = existing?.embed ?? null;
+    // "thumb": string = náhled máme, null = už jsme hledali a nic,
+    // undefined = ještě nezkoušeno (detail stáhneme jednou i u starších
+    // zápasů, které embed už mají).
+    let thumb = existing?.thumb;
 
-    if (!embed) {
-      try {
-        embed = await getEmbedId(m.url);
-        await sleep(REQUEST_DELAY_MS);
-      } catch (e) {
-        console.warn(`  ! Nepodařilo se načíst detail (${m.url}): ${e.message}`);
+    if (!embed || thumb === undefined) {
+      const detail = await getMatchDetail(m.url);
+      await sleep(REQUEST_DELAY_MS);
+      if (detail) {
+        embed = embed || detail.embed;
+        thumb = detail.thumb;
       }
     }
 
@@ -215,7 +234,19 @@ async function main() {
       us: m.us,
       season: computeSeason(m.date),
       ...(embed ? { embed } : {}),
+      ...(thumb !== undefined ? { thumb } : {}),
     });
+  }
+
+  // Pojistka: když tvcom dává všem zápasům stejný obecný obrázek (logo
+  // soutěže/platformy), není to náhled zápasu — zahodíme ho a web ukáže
+  // vlastní grafický náhled.
+  const thumbCount = new Map();
+  for (const m of merged.values()) {
+    if (m.thumb) thumbCount.set(m.thumb, (thumbCount.get(m.thumb) || 0) + 1);
+  }
+  for (const [key, m] of merged) {
+    if (m.thumb && thumbCount.get(m.thumb) > 2) merged.set(key, { ...m, thumb: null });
   }
 
   // Starším záznamům (z doby před zavedením "season") sezónu dopočítáme.
@@ -229,8 +260,9 @@ async function main() {
   fs.writeFileSync(OUT_PATH, JSON.stringify(result, null, 2) + "\n", "utf8");
 
   const withVideo = result.filter((m) => m.embed).length;
+  const withThumb = result.filter((m) => m.thumb).length;
   const seasons = [...new Set(result.map((m) => m.season))].sort();
-  console.log(`Uloženo ${OUT_PATH}: ${result.length} zápasů (sezóny: ${seasons.join(", ")}), ${withVideo} s videem.`);
+  console.log(`Uloženo ${OUT_PATH}: ${result.length} zápasů (sezóny: ${seasons.join(", ")}), ${withVideo} s videem, ${withThumb} s náhledem.`);
 }
 
 main().catch((err) => {
