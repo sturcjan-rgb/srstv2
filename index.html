@@ -110,6 +110,45 @@
   }
   .btn-play-lg svg{width:13px;height:13px;fill:#141414;}
 
+  .hero-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .hero-thumb.has-img::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.05),rgba(0,0,0,0.35));}
+  .hero-thumb .play-badge{position:relative;z-index:2;}
+
+  /* ---- náhledy (miniatury) ---- */
+  .thumb{
+    position:relative;aspect-ratio:16/9;border-radius:7px;overflow:hidden;
+    background:
+      radial-gradient(120% 140% at 15% 10%, rgba(255,210,26,0.18) 0%, transparent 55%),
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.035) 0 14px, transparent 14px 28px),
+      #101012;
+  }
+  .thumb.away{background:
+      radial-gradient(120% 140% at 15% 10%, rgba(255,255,255,0.10) 0%, transparent 55%),
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.035) 0 14px, transparent 14px 28px),
+      #101012;}
+  .thumb.yt{background:
+      radial-gradient(120% 140% at 15% 10%, rgba(255,60,60,0.20) 0%, transparent 55%),
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.035) 0 14px, transparent 14px 28px),
+      #101012;}
+  .thumb-fb{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:8% 9%;gap:2px;}
+  .thumb-fb .vs{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold);font-weight:700;}
+  .thumb.away .thumb-fb .vs{color:var(--text-dim);}
+  .thumb.yt .thumb-fb .vs{color:#ff5a5a;}
+  .thumb-fb .nm{font-family:"CoFo Peshka Black","Barlow Condensed",sans-serif;font-weight:900;color:var(--text);
+    font-size:15px;line-height:1.05;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;}
+  .thumb .mini-play{position:absolute;right:7px;bottom:7px;z-index:2;width:26px;height:26px;border-radius:50%;
+    background:var(--gold);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.4);}
+  .thumb .mini-play svg{width:10px;height:10px;fill:#141414;margin-left:2px;}
+  .thumb.no-video img{filter:grayscale(0.7) brightness(0.7);}
+  .match > .thumb .mini-play{display:none;}
+  .match > .thumb .thumb-fb{padding:6% 8%;}
+  .match > .thumb .thumb-fb .nm{font-size:12px;}
+  .match > .thumb .thumb-fb .vs{font-size:9px;letter-spacing:1px;}
+  .match-card .thumb{margin:-6px -6px 2px;}
+  .match-card .thumb-fb .nm{font-size:20px;}
+  .match-card .thumb-fb .vs{font-size:11px;}
+
   /* ---- 3-card row ---- */
   .cards-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
   .match-card{
@@ -156,7 +195,7 @@
   .results-count{font-size:12px;color:var(--text-dim);margin:-4px 0 14px;}
 
   .match-list{display:flex;flex-direction:column;gap:8px;}
-  .match{display:grid;grid-template-columns:100px 1fr 110px 140px;align-items:center;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;transition:background .15s ease, border-color .15s ease;}
+  .match{display:grid;grid-template-columns:128px 100px 1fr 110px 140px;align-items:center;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;transition:background .15s ease, border-color .15s ease;}
   .match.playable{cursor:pointer;}
   .match.playable:hover{background:var(--card-hover);border-color:var(--gold-dim);}
   .m-date{font-size:var(--fs-date);color:var(--text-dim);line-height:1.3;}
@@ -189,7 +228,8 @@
     .cards-row{grid-template-columns:1fr;}
   }
   @media (max-width:640px){
-    .match{grid-template-columns:1fr;gap:6px;text-align:left;}
+    .match{grid-template-columns:120px 1fr;gap:4px 14px;text-align:left;}
+    .match > .thumb{grid-row:1 / span 4;align-self:start;}
     .m-phase{text-align:left;}
     .m-action{justify-content:flex-start;}
     nav.links{display:none;}
@@ -304,6 +344,40 @@ const PRE_SHOW_MINUTES = 15;
 function opponentOf(m){ return m.us === "home" ? m.away : m.home; }
 function tagOf(m){ return m.us === "home" ? `<span class="tag-home">DOMA</span>` : `<span class="tag-away">VENKU</span>`; }
 
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+// URL náhledového obrázku: YouTube má vždy svůj, tvcom jen když ho
+// scraper našel (pole "thumb" v data/matches.json).
+function thumbUrl(m){
+  if(m.type === "youtube") return `https://i.ytimg.com/vi/${encodeURIComponent(m.videoId)}/mqdefault.jpg`;
+  return m.thumb || null;
+}
+
+// Miniatura: vespod vždy vlastní grafika (soupeř / název videa), přes ni
+// obrázek, pokud existuje. Když se obrázek nenačte, sám se odstraní a
+// zůstane grafika — nikdy tak nezůstane rozbitý obrázek.
+function thumbHtml(m, playable){
+  const yt = m.type === "youtube";
+  const cls = yt ? "yt" : (m.us === "away" ? "away" : "home");
+  const vs = yt ? "Video" : (m.us === "home" ? "Sršni vs" : "Venku vs");
+  const nm = yt ? (/ohlasy/i.test(m.title) ? "Ohlasy po utkání" : m.title) : opponentOf(m);
+  const url = thumbUrl(m);
+  return `<div class="thumb ${cls} ${playable ? "" : "no-video"}">
+      <div class="thumb-fb"><span class="vs">${esc(vs)}</span><span class="nm">${esc(nm)}</span></div>
+      ${url ? `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ""}
+      ${playable ? `<span class="mini-play">${PLAY_ICON}</span>` : ""}
+    </div>`;
+}
+
+// Velký náhled v hlavní kartě nahoře.
+function heroThumbHtml(m){
+  const url = thumbUrl(m);
+  return `<div class="hero-thumb ${url ? "has-img" : ""}">
+      ${url ? `<img src="${esc(url)}" alt="" onerror="this.parentNode.classList.remove('has-img');this.remove()">` : ""}
+      <div class="play-badge">${PLAY_ICON}</div>
+    </div>`;
+}
+
 function parseStart(m){
   const [d, mo, y] = m.date.split(".").map(s => parseInt(s.trim(), 10));
   const [hh, mm] = m.time.split(":").map(Number);
@@ -349,7 +423,7 @@ function renderHero(featured){
     const playable = !!m.embed;
     if(playable) el.onclick = () => openPlayer(m._i);
     el.innerHTML = `
-      <div class="hero-thumb"><div class="play-badge">${PLAY_ICON}</div></div>
+      ${heroThumbHtml(m)}
       <div class="hero-info">
         <div class="hero-eyebrow">Právě se hraje · ${m.phase}</div>
         <div class="hero-tags">${tagOf(m)}</div>
@@ -367,7 +441,7 @@ function renderHero(featured){
     const playable = !!m.embed;
     if(playable) el.onclick = () => openPlayer(m._i);
     el.innerHTML = `
-      <div class="hero-thumb"><div class="play-badge">${PLAY_ICON}</div></div>
+      ${heroThumbHtml(m)}
       <div class="hero-info">
         <div class="hero-eyebrow">${m.phase}</div>
         <div class="hero-tags">${tagOf(m)}</div>
@@ -384,7 +458,7 @@ function renderHero(featured){
   const playable = !!m.embed;
   if(playable) el.onclick = () => openPlayer(m._i);
   el.innerHTML = `
-    <div class="hero-thumb"><div class="play-badge">${PLAY_ICON}</div></div>
+    ${heroThumbHtml(m)}
     <div class="hero-info">
       <div class="hero-eyebrow">${m.phase}</div>
       <div class="hero-tags">${tagOf(m)}</div>
@@ -422,6 +496,7 @@ function renderCards(pool){
       : `<span class="btn-soon">bez videa</span>`;
     return `
       <div class="match-card" ${playable ? `onclick="openPlayer(${m._i})"` : ""}>
+        ${thumbHtml(m, playable)}
         <div class="card-top"><span class="card-date">${m.date} · ${m.time}</span>${tagOf(m)}</div>
         <div class="card-opponent">${opponentOf(m)}</div>
         <div class="card-phase">${m.phase}</div>
@@ -487,6 +562,7 @@ function renderList(){
       const label = /ohlasy/i.test(m.title) ? "Ohlasy po utkání" : m.title;
       return `
       <div class="match playable" onclick="openYouTube(${m._yi})">
+        ${thumbHtml(m, true)}
         <div class="m-date"><b>${m.date}</b>${m.time}</div>
         <div class="m-teams"><span class="tag-youtube">YOUTUBE</span><span class="yt-title">${label}</span></div>
         <div class="m-phase">Video</div>
@@ -499,6 +575,7 @@ function renderList(){
       : `<span class="btn-soon">bez videa</span>`;
     return `
       <div class="match ${playable ? 'playable' : ''}" ${playable ? `onclick="openPlayer(${m._i})"` : ""}>
+        ${thumbHtml(m, playable)}
         <div class="m-date"><b>${m.date}</b>${m.time}</div>
         <div class="m-teams">${tagOf(m)}<span class="opp-name">${opponentOf(m)}</span></div>
         <div class="m-phase">${m.phase}</div>
