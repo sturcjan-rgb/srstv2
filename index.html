@@ -346,22 +346,25 @@ function tagOf(m){ return m.us === "home" ? `<span class="tag-home">DOMA</span>`
 
 function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
-// URL náhledového obrázku: YouTube má vždy svůj, tvcom jen když ho
-// scraper našel (pole "thumb" v data/matches.json).
-function thumbUrl(m){
-  if(m.type === "youtube") return `https://i.ytimg.com/vi/${encodeURIComponent(m.videoId)}/mqdefault.jpg`;
-  return m.thumb || null;
+// URL náhledového obrázku: YouTube má vždy svůj, tvcom zápasy mají
+// "thumb" z data/matches.json (obrázek z tvcom podle ID zápasu).
+// "w" = požadovaná šířka — tvcom umí obrázek zmenšit (parametr Width),
+// takže malé miniatury v seznamu nestahují zbytečně velký soubor.
+function thumbUrl(m, w = 640){
+  if(m.type === "youtube") return `https://i.ytimg.com/vi/${encodeURIComponent(m.videoId)}/${w > 400 ? "hqdefault" : "mqdefault"}.jpg`;
+  if(!m.thumb) return null;
+  return /[?&]Width=\d+/i.test(m.thumb) ? m.thumb.replace(/([?&]Width=)\d+/i, `$1${w}`) : m.thumb;
 }
 
 // Miniatura: vespod vždy vlastní grafika (soupeř / název videa), přes ni
 // obrázek, pokud existuje. Když se obrázek nenačte, sám se odstraní a
 // zůstane grafika — nikdy tak nezůstane rozbitý obrázek.
-function thumbHtml(m, playable){
+function thumbHtml(m, playable, w = 640){
   const yt = m.type === "youtube";
   const cls = yt ? "yt" : (m.us === "away" ? "away" : "home");
   const vs = yt ? "Video" : (m.us === "home" ? "Sršni vs" : "Venku vs");
   const nm = yt ? (/ohlasy/i.test(m.title) ? "Ohlasy po utkání" : m.title) : opponentOf(m);
-  const url = thumbUrl(m);
+  const url = thumbUrl(m, w);
   return `<div class="thumb ${cls} ${playable ? "" : "no-video"}">
       <div class="thumb-fb"><span class="vs">${esc(vs)}</span><span class="nm">${esc(nm)}</span></div>
       ${url ? `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ""}
@@ -371,7 +374,7 @@ function thumbHtml(m, playable){
 
 // Velký náhled v hlavní kartě nahoře.
 function heroThumbHtml(m){
-  const url = thumbUrl(m);
+  const url = thumbUrl(m, 960);
   return `<div class="hero-thumb ${url ? "has-img" : ""}">
       ${url ? `<img src="${esc(url)}" alt="" onerror="this.parentNode.classList.remove('has-img');this.remove()">` : ""}
       <div class="play-badge">${PLAY_ICON}</div>
@@ -562,7 +565,7 @@ function renderList(){
       const label = /ohlasy/i.test(m.title) ? "Ohlasy po utkání" : m.title;
       return `
       <div class="match playable" onclick="openYouTube(${m._yi})">
-        ${thumbHtml(m, true)}
+        ${thumbHtml(m, true, 320)}
         <div class="m-date"><b>${m.date}</b>${m.time}</div>
         <div class="m-teams"><span class="tag-youtube">YOUTUBE</span><span class="yt-title">${label}</span></div>
         <div class="m-phase">Video</div>
@@ -575,7 +578,7 @@ function renderList(){
       : `<span class="btn-soon">bez videa</span>`;
     return `
       <div class="match ${playable ? 'playable' : ''}" ${playable ? `onclick="openPlayer(${m._i})"` : ""}>
-        ${thumbHtml(m, playable)}
+        ${thumbHtml(m, playable, 320)}
         <div class="m-date"><b>${m.date}</b>${m.time}</div>
         <div class="m-teams">${tagOf(m)}<span class="opp-name">${opponentOf(m)}</span></div>
         <div class="m-phase">${m.phase}</div>
