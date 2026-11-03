@@ -1,0 +1,14 @@
+name: Diagnostika náhledů (dočasné)
+on:
+  push:
+    branches: [claude/festive-newton-7mg0hs]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install
+      - run: node probe.mjs
+      - run: which ffmpeg && ffmpeg -version | head -1 || echo "ffmpeg není"
